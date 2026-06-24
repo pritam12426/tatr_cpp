@@ -1,0 +1,20 @@
+[
+	{
+		"label": "Build Current Project",
+		"command": "make",
+		"args": [
+			"all",
+			// "--target run"
+		],
+		"show_command": false,
+		"shell": {
+			"with_arguments": {
+				"program": "/bin/sh",
+				"args": []
+			}
+		},
+		"tags": [
+			"Build"
+		]
+	}
+]

@@ -1,0 +1,19 @@
+[
+	{
+		"directory": "/Users/pritam/Developer/cxx_lang/tatr_CPP_cli",
+		"arguments": [
+			"/usr/bin/clang++",
+			"-DASIO_STANDALONE",
+			"-Isrc",
+			"-Ithird_party",
+			"-I/opt/homebrew/include",
+			"-std=c++20",
+			"-o",
+			"build/src/main.cpp.o",
+			"-c",
+			"src/main.cpp"
+		],
+		"file": "src/main.cpp",
+		"output": "build/src/main.cpp.o"
+	}
+]
