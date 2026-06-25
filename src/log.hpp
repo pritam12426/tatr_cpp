@@ -31,6 +31,7 @@ public:
 	void  set_level(Level level) noexcept;
 	Level get_level()            const noexcept;
 	bool  use_color()            const noexcept;
+	void  set_show_timestamp(bool show) noexcept;
 
 	template<typename... Args>
 	void write_log(
@@ -54,7 +55,8 @@ public:
 		std::ostringstream line_buf;
 
 #ifdef LOG_SHOW_TIME_STAMP
-		write_timestamp(line_buf);
+		if (show_timestamp_)
+			write_timestamp(line_buf);
 #endif
 		write_prefix(line_buf, level);
 		write_source_location(line_buf, file, line, func);
@@ -69,10 +71,11 @@ public:
 
 private:
 	mutable std::shared_mutex     mutex_;
-	Level                         level_       = Level::INFO;
-	std::ostream                 *stream_      = nullptr;
+	Level                         level_          = Level::INFO;
+	std::ostream                 *stream_         = nullptr;
 	std::unique_ptr<std::ostream> owned_stream_;
-	bool                          use_color_   = false;
+	bool                          use_color_      = false;
+	bool                          show_timestamp_ = true;
 
 	void init_stream(const std::string &file_path);
 

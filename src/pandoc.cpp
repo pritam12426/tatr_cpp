@@ -148,7 +148,8 @@ fs::path render_markdown(
 
 	subprocess_s proc{};
 	const int flags = subprocess_option_no_window
-	                | subprocess_option_inherit_environment;
+	                | subprocess_option_inherit_environment
+	                | subprocess_option_enable_async;
 
 	if (subprocess_create(argv.data(), flags, &proc) != 0)
 		throw std::runtime_error(
@@ -156,14 +157,25 @@ fs::path render_markdown(
 
 	int exit_code = -1;
 	const int rc  = subprocess_join(&proc, &exit_code);
+
+	// Capture stderr before destroying the process handles.
+	char err_buf[4096] = {};
+	const unsigned n   = subprocess_read_stderr(&proc, err_buf, sizeof(err_buf) - 1);
+	err_buf[n]         = '\0';
+	const std::string stderr_str(err_buf, n);
+
 	subprocess_destroy(&proc);
 
 	if (rc != 0)
 		throw std::runtime_error("subprocess_join failed (rc=" + std::to_string(rc) + ")");
 
-	if (exit_code != 0)
-		throw std::runtime_error(
-		    "pandoc exited with code " + std::to_string(exit_code) + " for input: " + in_str);
+	if (exit_code != 0) {
+		std::string msg = "pandoc exited with code " + std::to_string(exit_code)
+		                + " for input: " + in_str;
+		if (!stderr_str.empty())
+			msg += "\nstderr: " + stderr_str;
+		throw std::runtime_error(msg);
+	}
 
 	LOG_DEBUG("pandoc rendered: ", in_str, " → ", out_str);
 	return out_path;

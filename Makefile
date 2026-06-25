@@ -35,9 +35,6 @@ endif
 
 ifeq ($(strip $(O_DEBUG)),1)
 	CPPFLAGS += -g3 -DDEBUG -DLOG_SHOW_SOURCE_LOCATION
-    ifneq (,$(findstring clang,$(CC)))
-		CPPFLAGS += -ffreestanding
-    endif
 else
 	CPPFLAGS += $(CFLAGS_OPTIMIZATION)
 endif

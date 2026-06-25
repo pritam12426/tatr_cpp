@@ -1,4 +1,5 @@
 #include "indexer.hpp"
+#include "log.hpp"
 
 #include <algorithm>
 #include <chrono>
@@ -19,11 +20,13 @@ json to_json(const FileInfo &fi)
 	    std::chrono::duration_cast<std::chrono::seconds>(sctp.time_since_epoch()).count();
 
 	return {
-		{"path",            fi.path.string()},
+		{"file_name",       fi.file_name},
+		{"path_relative",   fi.path_relative.string()},
 		{"path_absolute",   fi.path_absolute.string()},
 		{"size",            fi.size},
 		{"last_write_time", unix_sec},
 		{"permissions",     static_cast<int>(fi.permissions)},
+		{"is_readable",     fi.is_readable},
 	};
 }
 
@@ -54,13 +57,16 @@ static FileInfo make_file_info(const fs::path &p, const fs::path &abs_root)
 {
 	std::error_code ec;
 	FileInfo fi;
-	fi.path_absolute   = fs::weakly_canonical(p, ec);
-	// Relative to root — "README.md", not "/Users/.../README.md"
-	fi.path            = fs::relative(fi.path_absolute, abs_root, ec);
-	fi.size            = fs::file_size(p, ec);
-	if (ec) fi.size    = 0;
+	fi.path_absolute = fs::weakly_canonical(p, ec);
+	fi.path_relative = fs::relative(fi.path_absolute, abs_root, ec);
+	fi.file_name     = fi.path_relative.filename().string();
+	fi.size          = fs::file_size(p, ec);
+	if (ec) fi.size  = 0;
 	fi.last_write_time = fs::last_write_time(p, ec);
 	fi.permissions     = fs::status(p, ec).permissions();
+	// Readable if the owner-read bit is set. A proper access(2) check would
+	// be more accurate but this is sufficient for a local single-user tool.
+	fi.is_readable     = (fi.permissions & fs::perms::owner_read) != fs::perms::none;
 	return fi;
 }
 
@@ -75,7 +81,6 @@ Snapshot build_snapshot(const IndexerConfig &cfg)
 		for (const auto &ign : cfg.ignore)
 			if (stem == ign) return true;
 		if (!cfg.hidden && !stem.empty() && stem[0] == '.') return true;
-
 		return false;
 	};
 
@@ -87,12 +92,18 @@ Snapshot build_snapshot(const IndexerConfig &cfg)
 		       != cfg.extensions.end();
 	};
 
+	LOG_DEBUG("building snapshot from: ", root.string());
+
 	std::error_code ec;
 	for (fs::recursive_directory_iterator it(root, fs::directory_options::skip_permission_denied, ec), end;
 	     it != end;
 	     it.increment(ec))
 	{
-		if (ec) { ec.clear(); continue; }
+		if (ec) {
+			LOG_WARN("directory iteration error at '", it->path().string(), "': ", ec.message());
+			ec.clear();
+			continue;
+		}
 
 		if (is_ignored(it->path())) {
 			it.disable_recursion_pending();
@@ -105,7 +116,9 @@ Snapshot build_snapshot(const IndexerConfig &cfg)
 		if (!ext_ok(it->path()))      continue;
 
 		auto fi = make_file_info(it->path(), root);
-		snap.files.emplace(fi.path, std::move(fi));
+		snap.files.emplace(fi.path_relative, std::move(fi));
 	}
+
+	LOG_INFO("snapshot built: ", snap.files.size(), " files indexed from ", root.string());
 	return snap;
 }

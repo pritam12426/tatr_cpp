@@ -1,8 +1,8 @@
 #include "config.hpp"
+#include "log.hpp"
 
 #include <cstdlib>
 #include <fstream>
-#include <iostream>
 
 using json = nlohmann::json;
 
@@ -15,7 +15,6 @@ fs::path config_dir()
 
 json load_config()
 {
-	// These defaults must stay in sync with ect/config.json.
 	// Themes are intentionally left as an empty object here; the user's
 	// config file is the authoritative source for theme flag arrays.
 	json defaults = {
@@ -35,7 +34,7 @@ json load_config()
 			{"browser", nullptr}
 		}},
 		{"pandoc", {
-			{"binary_path", nullptr},
+			{"binary_path", ""},
 			{"themes", json::object()}
 		}},
 		{"watch", {
@@ -50,15 +49,10 @@ json load_config()
 			{"rendered_html", true},
 			{"search_index", true}
 		}},
-		{"search", {
-			{"title_only", false},
-			{"content_search", true},
-			{"case_sensitive", false},
-			{"fuzzy_search", true}
-		}},
 		{"logging", {
 			{"level", "info"},
-			{"file", nullptr}
+			{"file", nullptr},
+			{"no_timestamp", false}
 		}},
 		{"ui", {
 			{"default_page_size", 50},
@@ -68,16 +62,24 @@ json load_config()
 		}}
 	};
 
-	// Try XDG path first, then the bundled etc/ fallback.
+	// Try user config first, then system-wide /etc/tatr/config.json,
+	// then fall back to hardcoded defaults.
 	std::ifstream f(config_dir() / "config.json");
-	if (!f.is_open())
-		f.open(fs::path("ect") / "config.json");
+	bool from_system = false;
+	if (!f.is_open()) {
+		f.open(fs::path("/etc/tatr") / "config.json");
+		from_system = true;
+	}
 
 	if (f.is_open()) {
+		if (from_system)
+			LOG_INFO("loading config from /etc/tatr/config.json");
+		else
+			LOG_INFO("loading config from: ", (config_dir() / "config.json").string());
 		try {
 			defaults.merge_patch(json::parse(f));
 		} catch (const json::parse_error &e) {
-			std::cerr << "warning: failed to parse config: " << e.what() << '\n';
+			LOG_ERROR("failed to parse config: ", e.what());
 		}
 	}
 	return defaults;
@@ -87,13 +89,14 @@ void merge_config_file(json &cfg, const std::string &path)
 {
 	std::ifstream f(path);
 	if (!f.is_open()) {
-		std::cerr << "error: cannot open --config: " << path << '\n';
+		LOG_ERROR("cannot open --config: ", path);
 		std::exit(1);
 	}
 	try {
+		LOG_INFO("merging config from: ", path);
 		cfg.merge_patch(json::parse(f));
 	} catch (const json::parse_error &e) {
-		std::cerr << "error: failed to parse --config: " << e.what() << '\n';
+		LOG_ERROR("failed to parse --config: ", e.what());
 		std::exit(1);
 	}
 }

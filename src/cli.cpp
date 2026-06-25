@@ -10,6 +10,11 @@ using json = nlohmann::json;
 void build_cli(Cli &cli)
 {
 	cli.root.add_argument("--config").help("Path to a config file to merge");
+	cli.root.add_argument("--log-level").help("Log level: debug | info | warn | error");
+	cli.root.add_argument("--log-file").help("Write logs to this file");
+	cli.root.add_argument("--log-no-timestamp").help("Suppress timestamps in log output").flag();
+	cli.root.add_argument("--pandoc-binary-path").help("Path to pandoc binary");
+
 
 	auto add = [&](const std::string &n) -> argparse::ArgumentParser & {
 		return cli.add_sub(n);
@@ -17,7 +22,7 @@ void build_cli(Cli &cli)
 
 	// indexer
 	{
-		auto &s = add("indexer");
+		auto &s = add("indexer").add_description("Configure the file indexer: depth, root, ignored paths");
 		s.add_argument("--depth").help("Recursion depth").scan<'i', int>();
 		s.add_argument("--root-directory").help("Root directory");
 		s.add_argument("--ignore").help("Comma-separated ignore list");
@@ -28,59 +33,31 @@ void build_cli(Cli &cli)
 	}
 	// server
 	{
-		auto &s = add("server");
+		auto &s = add("server").add_description("Configure the HTTP server: host, port, browser auto-open");
 		s.add_argument("--host").help("Bind address");
 		s.add_argument("--port").help("Port").scan<'i', int>();
 		s.add_argument("--auto-open-browser").help("Open browser on start").flag();
 		s.add_argument("--browser").help("Browser command override");
 	}
-	// pandoc
-	{
-		auto &s = add("pandoc");
-		s.add_argument("--binary-path").help("Path to pandoc binary");
-	}
 	// watch
 	{
-		auto &s = add("watch");
+		auto &s = add("watch").add_description("Configure file watching: enable, polling, debounce");
 		s.add_argument("--enabled").help("Enable file watching").flag();
 		s.add_argument("--polling").help("Use polling instead of inotify").flag();
 		s.add_argument("--debounce-ms").help("Debounce delay in ms").scan<'i', int>();
 	}
 	// cache
 	{
-		auto &s = add("cache");
+		auto &s = add("cache").add_description("Configure render and search cache: directory, size limits");
 		s.add_argument("--enabled").help("Enable caching").flag();
 		s.add_argument("--directory").help("Cache directory path");
 		s.add_argument("--max-size-mb").help("Cache size cap in MB").scan<'i', int>();
 		s.add_argument("--rendered-html").help("Cache rendered HTML").flag();
 		s.add_argument("--search-index").help("Cache search index").flag();
 	}
-	// features
-	{
-		auto &s = add("features");
-		s.add_argument("--wikilinks").help("Enable [[wikilinks]]").flag();
-		s.add_argument("--backlinks").help("Enable backlinks panel").flag();
-		s.add_argument("--tags").help("Enable tag index").flag();
-		s.add_argument("--graph").help("Enable graph view").flag();
-	}
-	// search
-	{
-		auto &s = add("search");
-		s.add_argument("--title-only").help("Search titles only").flag();
-		s.add_argument("--content").help("Enable full-content search").flag();
-		s.add_argument("--case-sensitive").help("Case-sensitive search").flag();
-		s.add_argument("--fuzzy").help("Enable fuzzy matching").flag();
-	}
-	// logging
-	{
-		auto &s = add("logging");
-		s.add_argument("--level").help("Log level: debug | info | warn | error");
-		s.add_argument("--file").help("Write logs to this file");
-		s.add_argument("--timestamp").help("Prepend timestamps").flag();
-	}
 	// ui
 	{
-		auto &s = add("ui");
+		auto &s = add("ui").add_description("Configure the web UI defaults: page size, icons, sort");
 		s.add_argument("--page-size").help("Items per page").scan<'i', int>();
 		s.add_argument("--file-icons").help("Show file icons").flag();
 		s.add_argument("--hidden-metadata").help("Show hidden metadata").flag();
@@ -88,7 +65,7 @@ void build_cli(Cli &cli)
 	}
 	// theme
 	{
-		auto &s = add("theme");
+		auto &s = add("theme").add_description("Select the pandoc theme: light, dark, or custom");
 		s.add_argument("theme").help("Theme name: light | dark");
 	}
 }
@@ -148,8 +125,6 @@ static void apply_one(Cli &cli, const std::string &name, json &cfg)
 		set_int( "port",              "--port");
 		set_bool("auto_open_browser", "--auto-open-browser");
 		set_str( "browser",           "--browser");
-	} else if (name == "pandoc") {
-		set_str("binary_path", "--binary-path");
 	} else if (name == "watch") {
 		set_bool("enabled",     "--enabled");
 		set_bool("polling",     "--polling");
@@ -160,19 +135,6 @@ static void apply_one(Cli &cli, const std::string &name, json &cfg)
 		set_int( "max_size_mb",   "--max-size-mb");
 		set_bool("rendered_html", "--rendered-html");
 		set_bool("search_index",  "--search-index");
-	} else if (name == "features") {
-		set_bool("wikilinks", "--wikilinks");
-		set_bool("backlinks", "--backlinks");
-		set_bool("tags",      "--tags");
-		set_bool("graph",     "--graph");
-	} else if (name == "search") {
-		set_bool("title_only",     "--title-only");
-		set_bool("content_search", "--content");
-		set_bool("case_sensitive", "--case-sensitive");
-		set_bool("fuzzy_search",   "--fuzzy");
-	} else if (name == "logging") {
-		set_str("level", "--level");
-		set_str("file",  "--file");
 	} else if (name == "ui") {
 		set_int( "default_page_size",    "--page-size");
 		set_bool("show_file_icons",      "--file-icons");
@@ -184,8 +146,8 @@ static void apply_one(Cli &cli, const std::string &name, json &cfg)
 void apply_subcommands(Cli &cli, json &cfg)
 {
 	for (const auto *name : {
-	         "indexer", "server", "pandoc", "watch", "cache",
-	         "features", "search", "logging", "ui", "theme"
+	         "indexer", "server", "watch", "cache",
+	         "ui", "theme"
 	     })
 		apply_one(cli, name, cfg);
 }

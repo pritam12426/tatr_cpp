@@ -3,6 +3,7 @@
 #include <chrono>
 #include <cstdio>
 #include <ctime>
+#include <iomanip>
 #include <fstream>
 #include <iostream>
 #include <system_error>
@@ -119,6 +120,12 @@ bool Logger::use_color() const noexcept
 	return use_color_;
 }
 
+void Logger::set_show_timestamp(bool show) noexcept
+{
+	std::unique_lock lock(mutex_);
+	show_timestamp_ = show;
+}
+
 // ====================== Timestamp ======================
 
 void Logger::write_timestamp(std::ostream &os) const
@@ -146,7 +153,7 @@ void Logger::write_timestamp(std::ostream &os) const
 	if (use_color_)
 		os << COLOR_DIM;
 
-	os << '[' << buf << '.' << us << "] ";
+	os << '[' << buf << '.' << std::setfill('0') << std::setw(6) << us << "] ";
 
 	if (use_color_)
 		os << COLOR_RESET;

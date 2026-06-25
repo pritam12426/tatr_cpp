@@ -32,6 +32,16 @@ int main(int argc, char *argv[])
 	// Subcommand flags take final precedence.
 	apply_subcommands(cli, config);
 
+	// Global logging flags override config.
+	if (auto v = cli.root.present("--log-level"))
+		config["logging"]["level"] = *v;
+	if (auto v = cli.root.present("--log-file"))
+		config["logging"]["file"] = *v;
+	if (cli.root.is_used("--log-no-timestamp"))
+		config["logging"]["no_timestamp"] = true;
+	if (auto v = cli.root.present("--pandoc-binary-path"))
+		config["pandoc"]["binary_path"] = *v;
+
 	// ── Configure logger ──────────────────────────────────────────────────────
 
 	const std::string level = config.value("/logging/level"_json_pointer, "info");
@@ -39,6 +49,9 @@ int main(int argc, char *argv[])
 	else if (level == "warn")  g_logger.set_level(Logger::Level::WARN);
 	else if (level == "error") g_logger.set_level(Logger::Level::ERROR);
 	else                       g_logger.set_level(Logger::Level::INFO);
+
+	if (config.value("/logging/no_timestamp"_json_pointer, false))
+		g_logger.set_show_timestamp(false);
 
 	// ── Run ───────────────────────────────────────────────────────────────────
 
